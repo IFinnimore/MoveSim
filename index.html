@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="MoveSim: an offline motion workbench for comparing input, messages, and motion models.">
+  <title>MoveSim</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">↗</span><div><h1>MoveSim</h1><p>MOTION WORKBENCH <span> / LOCAL ONLY</span></p></div></div>
+    <div class="header-readouts">
+      <div class="clock-display"><span id="clock-status" class="status-dot paused"></span><span id="clock-label">STOPPED</span><output id="clock-time">00:00.000</output></div>
+    </div>
+    <div class="header-actions"><button id="clear-button" class="primary">Clear &amp; home</button></div>
+  </header>
+
+  <main class="workbench">
+    <aside class="control-column" aria-label="Input and model controls">
+    <section class="panel input-panel" aria-labelledby="input-heading">
+      <div class="panel-heading"><h2 id="input-heading"><span>01</span> Input</h2><div class="input-actions"><select id="speed-select" aria-label="Joystick speed" title="Speed per joystick axis. Wheel speed comes from sampled distance / time."></select><button id="send-button" aria-pressed="false">Don't send</button><button id="pause-button" class="primary">Start</button></div></div>
+      <div class="input-content">
+        <div class="input-selectors"><label class="field">Source<select id="input-source"><option value="joystick">Simulated joysticks</option><option value="gamepad">Gamepad</option></select></label><label class="field">Wheel distance / revolution<select id="wheel-scale"><option value="1000">100 mm/rev</option><option value="500">50 mm/rev</option><option value="100">10 mm/rev</option><option value="2540">254 mm/rev</option><option value="254">25.4 mm/rev</option></select></label></div>
+        <div class="dpad-controls"><button id="dpad-bump-button" type="button" aria-pressed="false">D-pad: move</button><span>Fine mode: 0.1 mm per press</span></div>
+        <div class="joystick-pair">
+          <div class="stick-view">
+          <output id="joystick-status" class="stick-status">X+0.00 Y+0.00 NEUTRAL</output>
+          <div id="joystick" class="joystick" tabindex="0" role="group" aria-label="Left proportional joystick. Drag to move; release to stop. Arrow keys or W A S D also control direction.">
+            <div class="joystick-ring"></div><div class="joystick-cross horizontal"></div><div class="joystick-cross vertical"></div>
+            <span class="direction north">Y+</span><span class="direction east">X+</span><span class="direction south">Y−</span><span class="direction west">X−</span>
+            <div id="joystick-knob" class="joystick-knob"></div>
+          </div>
+          <button id="joystick-mode" class="stick-caption stick-mode" type="button" aria-pressed="false">Left stick · L3</button>
+          </div>
+          <div class="stick-view">
+          <output id="joystick-status-right" class="stick-status">X+0.00 Y+0.00 NEUTRAL</output>
+          <div id="joystick-right" class="joystick" tabindex="0" role="group" aria-label="Right proportional joystick. Drag to move; release to stop.">
+            <div class="joystick-ring"></div><div class="joystick-cross horizontal"></div><div class="joystick-cross vertical"></div>
+            <span class="direction north">Y+</span><span class="direction east">X+</span><span class="direction south">Y−</span><span class="direction west">X−</span>
+            <div class="joystick-knob"></div>
+          </div>
+          <button id="joystick-mode-right" class="stick-caption stick-mode" type="button" aria-pressed="false">Right stick · R3</button>
+          </div>
+        </div>
+        <p id="input-help" class="hint">Drag either stick and release to stop. Arrow / WASD keys drive the left stick.</p>
+        <details id="gamepad-controls" class="gamepad-settings">
+          <summary>Gamepad settings</summary>
+          <div class="gamepad-content">
+          <label class="field">Controller<select id="gamepad-device"><option value="">Press a controller button to detect</option></select></label>
+          <div class="gamepad-mappings">
+            <fieldset><legend>Left stick</legend>
+              <div class="field-row"><label class="field">X axis<input id="gamepad-axis-x" type="number" min="0" max="15" step="1" value="0"></label><label class="field">Y axis<input id="gamepad-axis-y" type="number" min="0" max="15" step="1" value="1"></label></div>
+              <div class="check-row"><label><input id="gamepad-invert-x" type="checkbox"> Invert X</label><label><input id="gamepad-invert-y" type="checkbox" checked> Invert Y</label></div>
+            </fieldset>
+            <fieldset><legend>Right stick</legend>
+              <div class="field-row"><label class="field">X axis<input id="gamepad-right-axis-x" type="number" min="0" max="15" step="1" value="2"></label><label class="field">Y axis<input id="gamepad-right-axis-y" type="number" min="0" max="15" step="1" value="3"></label></div>
+              <div class="check-row"><label><input id="gamepad-right-invert-x" type="checkbox"> Invert X</label><label><input id="gamepad-right-invert-y" type="checkbox" checked> Invert Y</label></div>
+            </fieldset>
+          </div>
+          <label class="field dead-zone-field">Neutral / dead zone<input id="dead-zone" type="number" min="0" max="0.9" step="0.05" value="0.15"></label>
+          <p id="gamepad-status" class="hint" role="status">Connect a controller and press a button.</p>
+          </div>
+        </details>
+        <details id="button-controls" class="gamepad-settings">
+          <summary>Button settings</summary>
+          <div class="gamepad-content">
+            <label class="field">Select an action, then press controller buttons to assign. Remains in assignment until panel is collapsed or &quot;Choose an action…&quot; is chosen.<select id="button-action"><option value="">Choose an action…</option><option value="clock">Clock toggle</option><option value="clear">Clear &amp; home</option><option value="send">Send while held</option><option value="bump">Fine bump while held</option><option value="speed0">Speed 1</option><option value="speed1">Speed 2</option><option value="speed2">Speed 3</option><option value="speed3">Speed 4</option></select></label>
+            <div id="button-mappings" class="button-mappings"></div>
+            <p class="hint">L3 / R3: fixed left / right stick or finger wheel toggle. Clock must be stopped.</p>
+            <div class="speed-slots"><label class="field">Speed 1 (mm/s)<input id="speed-slot-0" type="number" min="0.1" max="1000" step="0.1"></label><label class="field">Speed 2 (mm/s)<input id="speed-slot-1" type="number" min="0.1" max="1000" step="0.1"></label><label class="field">Speed 3 (mm/s)<input id="speed-slot-2" type="number" min="0.1" max="1000" step="0.1"></label><label class="field">Speed 4 (mm/s)<input id="speed-slot-3" type="number" min="0.1" max="1000" step="0.1"></label></div>
+            <p id="button-settings-status" class="hint" role="status"></p>
+          </div>
+        </details>
+        <p id="input-settings-status" class="hint storage-notice" role="status" hidden></p>
+      </div>
+    </section>
+
+    <section class="panel models-panel" aria-labelledby="models-heading">
+      <div class="panel-heading"><h2 id="models-heading"><span>02</span> Models</h2><label class="machine-field">Max acceleration (mm/s²)<input id="machine-max-acceleration" type="number" min="0.1" max="1000000" step="0.1" value="2000" required></label></div>
+      <div class="model-content">
+          <p id="machine-settings-status" class="hint storage-notice" role="status" hidden></p>
+          <div class="model-title"><label><input id="model-visible" type="checkbox" checked><span class="trace-swatch"></span> Just Draw</label><div class="model-title-actions"><span class="model-badge">BASELINE</span><button id="just-draw-settings-toggle" class="model-settings-toggle" type="button" data-model-settings="Just Draw" aria-controls="just-draw-settings" aria-expanded="false" aria-label="Show Just Draw settings">Settings</button></div><output id="just-draw-position" class="model-position">X200.0 Y200.0</output></div>
+          <div id="just-draw-settings" class="model-settings-content" hidden>
+          <p class="hint">Instant velocity response. Requires Send. Records while hidden.</p>
+          <details id="preset-panel" class="preset-panel">
+            <summary>Parameter notebook <span id="preset-summary">Defaults</span></summary>
+            <div class="preset-content">
+              <label class="field">Saved set<select id="preset-select" aria-label="Saved parameter set"></select></label>
+              <label class="field">Name<input id="preset-name" type="text" maxlength="80" autocomplete="off" placeholder="Name this experiment"></label>
+              <label class="field">Note<textarea id="preset-note" rows="3" maxlength="2000" placeholder="What did you observe?" aria-describedby="preset-status"></textarea></label>
+              <div class="preset-actions"><button id="preset-save" type="button">Save</button><button id="preset-rename" type="button">Rename</button><button id="preset-delete" type="button">Delete</button></div>
+              <p id="preset-status" class="hint" role="status" aria-live="polite"></p>
+            </div>
+          </details>
+        <form id="model-settings">
+          <label class="check-row"><input id="model-proportional" type="checkbox"> Proportional input</label>
+          <div class="field-row"><label class="field">Sample (ms)<input id="model-sample" type="number" min="1" max="10000" step="1" value="20" required></label><label class="field">Message interval (ms)<input id="model-message" type="number" min="1" max="10000" step="1" value="20" required></label></div>
+          <div class="field-row"><label class="field">Delivery delay (ms)<input id="model-delay" type="number" min="0" max="10000" step="1" value="0" required></label></div>
+          <button id="apply-settings" type="submit" class="settings-button" data-state="clean" disabled aria-describedby="settings-status">Settings applied</button>
+          <p id="settings-status" class="settings-status" role="status" aria-live="polite">Displayed settings match the running model.</p>
+        </form>
+        <div class="model-records"><span id="record-count">0 points recorded</span></div>
+          </div>
+          <div class="model-divider"></div>
+          <div class="model-title"><label><input id="g91-visible" type="checkbox" checked><span class="trace-swatch trace-blue"></span> G91 Incremental</label><div class="model-title-actions"><span id="g91-state" class="model-badge badge-blue">STOPPED</span><button id="g91-settings-toggle" class="model-settings-toggle" type="button" data-model-settings="G91 Incremental" aria-controls="g91-settings" aria-expanded="false" aria-label="Show G91 Incremental settings">Settings</button></div><output id="g91-position" class="model-position">X200.0 Y200.0</output></div>
+          <div id="g91-settings" class="model-settings-content" hidden>
+            <p class="hint">Fixed-duration blocks. Continuous velocity. Stop finishes the block, then ramps to zero.</p>
+            <details id="g91-preset-panel" class="preset-panel">
+              <summary>Parameter notebook <span id="g91-preset-summary">Defaults</span></summary>
+              <div class="preset-content">
+                <label class="field">Saved set<select id="g91-preset-select" aria-label="Saved G91 parameter set"></select></label>
+                <label class="field">Name<input id="g91-preset-name" type="text" maxlength="80" autocomplete="off" placeholder="Name this experiment"></label>
+                <label class="field">Note<textarea id="g91-preset-note" rows="3" maxlength="2000" placeholder="What did you observe?" aria-describedby="g91-preset-status"></textarea></label>
+                <div class="preset-actions"><button id="g91-preset-save" type="button">Save</button><button id="g91-preset-rename" type="button">Rename</button><button id="g91-preset-delete" type="button">Delete</button></div>
+                <p id="g91-preset-status" class="hint" role="status" aria-live="polite"></p>
+              </div>
+            </details>
+            <form id="g91-model-settings">
+              <label class="check-row"><input id="g91-proportional" type="checkbox" checked> Proportional input</label>
+              <label class="field g91-duration-field">Move duration (ms)<input id="g91-duration" type="number" min="1" max="10000" step="1" value="100" required></label>
+              <button id="g91-apply-settings" type="submit" class="settings-button" data-state="clean" disabled aria-describedby="g91-settings-status">Settings applied</button>
+              <p id="g91-settings-status" class="settings-status" role="status" aria-live="polite">Displayed settings match the running model.</p>
+            </form>
+            <div class="model-records"><span id="g91-record-count">0 points recorded</span></div>
+          </div>
+      </div>
+    </section>
+
+    </aside>
+
+    <section class="panel motion-panel" aria-labelledby="motion-heading">
+      <div class="panel-heading motion-heading"><h2 id="motion-heading"><span>03</span> Motion canvas</h2><select id="canvas-view" aria-label="Canvas view"><option value="">Models</option></select><div class="toolbar"><button id="grid-button" class="toggle active" aria-pressed="true">Grid</button><button id="gates-button" class="toggle" aria-pressed="false">Gates</button><span class="toolbar-divider"></span><button id="canvas-zoom-out" aria-label="Zoom canvas out">−</button><button id="canvas-zoom-in" aria-label="Zoom canvas in">+</button><button id="canvas-fit">Full area</button></div></div>
+      <div class="canvas-container"><canvas id="motion-canvas" tabindex="0" aria-label="Motion canvas, 400 by 400 millimetres. Scroll to zoom at the cursor. Drag to pan."></canvas><div id="canvas-overlay" class="canvas-overlay"><div id="camera-dro" class="camera-dro" hidden><span>CAM-era view</span><output id="camera-x">X200.0</output><output id="camera-y">Y200.0</output></div><span id="canvas-view-label">400 × 400 mm</span><span id="gates-label" hidden>0 / 6 gates hit</span></div><div id="canvas-help" class="canvas-help">SCROLL TO ZOOM · DRAG TO PAN</div></div>
+      <footer class="canvas-footer"><span id="motion-model-legend"></span><span>0.1 mm coordinate units · origin at lower left</span><span id="inspection-label">STOPPED</span></footer>
+    </section>
+
+    <section class="panel timeline-panel" aria-labelledby="timeline-heading">
+      <div class="panel-heading"><h2 id="timeline-heading"><span>04</span> Velocity / time</h2><div class="timeline-legend"><span><i class="legend-line"></i> X</span><span><i class="legend-line dashed"></i> Y</span><span><i class="marker-key input-key"></i> Input</span><span><i class="marker-key message-key"></i> Message received</span></div><div class="toolbar"><button id="timeline-zoom-out" aria-label="Zoom timeline out">−</button><button id="timeline-zoom-in" aria-label="Zoom timeline in">+</button><button id="timeline-fit">Fit to sim</button><button id="messages-button" aria-expanded="false">Messages <span id="message-count">0</span></button></div></div>
+      <div class="timeline-body"><div class="chart-container"><canvas id="velocity-chart" tabindex="0" aria-label="Velocity chart. Click to inspect a time or message. Scroll to zoom; shift and drag to pan."></canvas></div><aside id="message-log" class="message-log" aria-label="Message log" hidden><div id="message-detail" class="message-detail">Select a message marker or log entry.</div><div id="message-list" class="message-list"></div></aside></div>
+      <footer class="timeline-footer"><label for="time-scrubber">INSPECT</label><input id="time-scrubber" type="range" min="0" max="1" step="1" value="0" aria-label="Inspect recording time"><output id="inspection-time">0 ms</output><button id="return-live">Latest</button><span>Click to inspect · scroll to zoom · shift-drag to pan</span></footer>
+    </section>
+  </main>
+  <noscript>MoveSim needs JavaScript enabled. All code runs locally in this browser.</noscript>
+
+  <!-- Ordinary scripts keep the shared source usable when index.html is opened directly. -->
+  <!-- Load common services before models and views; UI starts the application last. -->
+  <script src="js/common.js"></script>
+  <script src="js/clock.js"></script>
+  <script src="js/messages.js"></script>
+  <script src="js/presets.js"></script>
+  <script src="js/input-settings.js"></script>
+  <script src="js/button-controls.js"></script>
+  <script src="js/wheel-input.js"></script>
+  <script src="js/finger-wheel.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/machine-settings.js"></script>
+  <script src="js/model-base.js"></script>
+  <script src="js/model-just-draw.js"></script>
+  <script src="js/model-g91-incremental.js"></script>
+  <script src="js/camera-view.js"></script>
+  <script src="js/motion-canvas.js"></script>
+  <script src="js/velocity-chart.js"></script>
+  <script src="js/ui.js"></script>
+</body>
+</html>
