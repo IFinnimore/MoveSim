@@ -57,10 +57,11 @@
     function gateHits(models, timeMs) {
       const hits = gates.map(function () { return false; });
       models.filter(function (model) { return model.visible; }).forEach(function (model) {
+        const modelTimeMs = Math.min(timeMs, model.latestTimeMs);
         const endIndex = sim.findAtTime(model.history, timeMs);
         for (let index = 0; index <= endIndex; index++) {
           const start = model.history[index];
-          const end = index < endIndex ? model.history[index + 1] : model.stateAt(timeMs);
+          const end = index < endIndex ? model.history[index + 1] : model.stateAt(modelTimeMs);
           gates.forEach(function (gate, gateIndex) {
             if (!hits[gateIndex] && sim.segmentIntersectsSquare(start, end, gate)) hits[gateIndex] = true;
           });
@@ -106,6 +107,7 @@
     }
 
     function drawModel(context, model, timeMs, isFollowed) {
+      timeMs = Math.min(timeMs, model.latestTimeMs);
       const endIndex = sim.findAtTime(model.history, timeMs);
       context.strokeStyle = model.colour;
       context.lineWidth = 1.6;
@@ -161,7 +163,7 @@
         const context = prepared.context;
         const current = settings();
         const followed = models.find(function (model) { return model.id === followedModelId; });
-        const centre = followed ? followed.stateAt(timeMs) : { positionXdmm: sim.centrePositiondmm, positionYdmm: sim.centrePositiondmm };
+        const centre = followed ? followed.stateAt(Math.min(timeMs, followed.latestTimeMs)) : { positionXdmm: sim.centrePositiondmm, positionYdmm: sim.centrePositiondmm };
         const area = followed ? camera.layout(prepared.width, prepared.height, current.zoom) : { left: 0, top: 0, width: prepared.width, height: prepared.height };
         view = { timeMs, width: prepared.width, height: prepared.height,
           scale: followed ? area.scale : Math.max(0.01, Math.min((prepared.width - 100) / sim.areaSizedmm, (prepared.height - 85) / sim.areaSizedmm)) * current.zoom,

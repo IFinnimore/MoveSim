@@ -177,7 +177,7 @@ async function main() {
   await click("model-visible");
   await evaluate("document.getElementById('time-scrubber').value = '0'; document.getElementById('time-scrubber').dispatchEvent(new Event('input', { bubbles: true }))");
   await wait(80);
-  assert.deepEqual(await evaluate("Array.from(document.querySelectorAll('.model-position'), output => output.textContent)"), ["X200.0 Y200.0", "X200.0 Y200.0"]);
+  assert.deepEqual(await evaluate("Array.from(document.querySelectorAll('.model-position'), output => output.textContent)"), ["X200.0 Y200.0", "X200.0 Y200.0", "X0.0 Y0.0"]);
   assert.equal(await evaluate("document.querySelector('.app-header .model-position, .header-position') === null"), true);
   assert.equal(await evaluate("MoveSim.app.clock.isRunning()"), false);
   await click("return-live");
@@ -214,7 +214,7 @@ async function main() {
   assert.equal(await evaluate("document.getElementById('message-detail').textContent.startsWith('#3 ·')"), true);
   console.log("PASS log and marker selection, gates, wheel zoom, pan, fit");
 
-  assert.deepEqual(await evaluate("Array.from(document.getElementById('canvas-view').options, option=>[option.value,option.textContent])"),[["","Models"],["just-draw","CAM-era: Just Draw"],["g91","CAM-era: G91 Incremental"]]);
+  assert.deepEqual(await evaluate("Array.from(document.getElementById('canvas-view').options, option=>[option.value,option.textContent])"),[["","Models"],["just-draw","CAM-era: Just Draw"],["g91","CAM-era: G91 Incremental"],["dyno","CAM-era: Dyno"]]);
   await click("canvas-zoom-in");
   const modelCentre=await evaluate("(() => {const r=document.getElementById('motion-canvas').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()");
   await command("Input.dispatchMouseEvent",{type:"mousePressed",x:modelCentre.x,y:modelCentre.y,button:"left",clickCount:1});
@@ -443,7 +443,7 @@ async function main() {
   await click("send-button");
   await click("pause-button");
   await wait(200);
-  assert.equal(await evaluate("MoveSim.app.models.every(model => {const state=model.stateAt(MoveSim.app.clock.now()); return state.positionXdmm>2000 && state.positionYdmm>2000;})"), true, "both models move diagonally from D-pad input in wheel mode");
+  assert.equal(await evaluate("MoveSim.app.models.filter(model => !model.external).every(model => {const state=model.stateAt(MoveSim.app.clock.now()); return state.positionXdmm>2000 && state.positionYdmm>2000;})"), true, "both local models move diagonally from D-pad input in wheel mode");
   await evaluate("fakePad.buttons[15].pressed=false; fakePad.buttons[12].pressed=false");
   await wait(300);
   assert.deepEqual(await evaluate("MoveSim.app.controls.current()"), {x:0,y:0});
@@ -850,6 +850,94 @@ async function main() {
   await wait(100);
   const cameraScreenshot=await command("Page.captureScreenshot",{format:"png",captureBeyondViewport:false});
   fs.writeFileSync(path.join(artifactDirectory,"camera-view.png"),Buffer.from(cameraScreenshot.data,"base64"));
+  await evaluate(`
+    MoveSim.app.pause();
+    MoveSim.app.clock.now = () => 0;
+    window.savedWebSocket = window.WebSocket;
+    window.dynoSent = [];
+    window.WebSocket = class {
+      constructor() { window.dynoSocket = this; setTimeout(() => this.onopen(), 0); }
+      send(text) { window.dynoSent.push(text); }
+      close() {}
+    };
+    document.getElementById('dyno-connect').click();
+  `);
+  await wait(50);
+  assert.deepEqual(await evaluate("dynoSent"), [], "Connect sends no commands");
+  await click("dyno-init");
+  assert.deepEqual(await evaluate("dynoSent"), ["1 G91"]);
+  await evaluate(`dynoSocket.onmessage({data:JSON.stringify([{type:'serial',id:1,line:'ok'}])})`);
+  assert.deepEqual(await evaluate("dynoSent"), ["1 G91", "2 M114"]);
+  await evaluate(`dynoSocket.onmessage({data:JSON.stringify([
+    {type:'serial',id:2,line:'X:0 Y:407 Z:420'}, {type:'serial',id:2,line:'ok'},
+    {type:'snapshot',px:0,py:407,x:0,y:407,hostUs:1000,simNs:0}
+  ])})`);
+  await wait(50);
+  await click("dyno-test");
+  assert.equal(await evaluate("dynoSent.at(-1)"), "4 G0 X1 F6000");
+  await evaluate(`dynoSocket.onmessage({data:JSON.stringify([
+    {type:'submitted',id:4,simNs:1000000,hostUs:2000,line:'G0 X1 F6000'},
+    {type:'serial',id:4,line:'ok',simNs:1100000,hostUs:2100},
+    {type:'pulse',px:0.5,py:407,x:0.5,y:407,simNs:2000000,hostUs:3000},
+    {type:'pulse',px:1,py:407,x:1,y:407,simNs:3000000,hostUs:4000}
+  ])})`);
+  await wait(100);
+  await click("return-live");
+  assert.equal(await evaluate("MoveSim.app.clock.now()"), 0, "Dyno capture never advances the local clock");
+  assert.equal(await evaluate("document.getElementById('clock-time').textContent"), "00:00.000");
+  assert.equal(await evaluate("document.getElementById('dyno-position').textContent"), "X1.0 Y0.0");
+  assert.equal(await evaluate("document.getElementById('dyno-results').textContent.includes('Send → target X')"), true);
+  await evaluate("MoveSim.app.inspect(MoveSim.app.models[2].tests[0].firstPulse.timeMs)");
+  await wait(60);
+  assert.equal(await evaluate("document.getElementById('dyno-position').textContent"), "X0.5 Y0.0", "shared inspection follows captured X, with Y fixed only in Dyno data");
+  await evaluate("document.querySelector('[data-model-settings=Dyno]').click();document.getElementById('canvas-view').value='dyno';document.getElementById('canvas-view').dispatchEvent(new Event('change'))");
+  await wait(60);
+  const dynoScreenshot = await command("Page.captureScreenshot", { format: "png", captureBeyondViewport: false });
+  fs.writeFileSync(path.join(artifactDirectory, "dyno.png"), Buffer.from(dynoScreenshot.data, "base64"));
+  await click("dyno-connect");
+  await evaluate("window.WebSocket = window.savedWebSocket");
+  assert.equal(await evaluate("document.getElementById('dyno-test').disabled"), true);
+  console.log("PASS Dyno controls, explicit Init sequence, test timings, independent clock and X-only historical inspection");
+  await evaluate(`
+    MoveSim.app.clock.now = () => 10000;
+    MoveSim.app.velocityChart.fit();
+    const test = MoveSim.app.models[2].tests[0];
+    test.startUs = 254085.1; test.okUs = 6704.9; test.arrivalUs = 466551.9;
+    test.firstPulse.simNs = 753196720; test.lastPulse.simNs = 795629560;
+  `);
+  await wait(60);
+  assert.equal(await evaluate("document.getElementById('dyno-results').textContent.includes('254,085.1 µs') && document.getElementById('dyno-results').textContent.includes('753,196,720')"), true, "Dyno timings use groups of three in both units");
+  await click("timeline-zoom-in");
+  await click("timeline-zoom-in");
+  const chart = await evaluate("(() => {const r=document.getElementById('velocity-chart').getBoundingClientRect();return {x:r.left+57,y:r.top+65,width:r.width-76};})()");
+  const firstX = chart.x + chart.width * 0.35, secondX = chart.x + chart.width * 0.65;
+  async function chartClick(x) {
+    await command("Input.dispatchMouseEvent", { type: "mousePressed", x, y: chart.y, button: "left", clickCount: 1 });
+    await command("Input.dispatchMouseEvent", { type: "mouseReleased", x, y: chart.y, button: "left", clickCount: 1 });
+    await wait(30);
+    return evaluate("Number(document.getElementById('inspection-time').textContent.replace(/[^0-9.]/g,''))");
+  }
+  async function chartDrag(button, buttons, fromX, toX) {
+    await command("Input.dispatchMouseEvent", { type: "mousePressed", x: fromX, y: chart.y, button, buttons, clickCount: 1 });
+    await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: toX, y: chart.y, button, buttons });
+    await command("Input.dispatchMouseEvent", { type: "mouseReleased", x: toX, y: chart.y, button, clickCount: 1 });
+    await wait(40);
+  }
+  const beforePan = await chartClick(firstX);
+  await chartDrag("middle", 4, secondX, firstX);
+  const afterPan = await chartClick(firstX);
+  assert.ok(afterPan > beforePan, "middle drag pans the visible time range");
+  await chartDrag("right", 2, firstX, secondX);
+  const measured = await evaluate("document.getElementById('timeline-measurement').textContent");
+  assert.match(measured, /^Start [\d,]+\.\d µs · End [\d,]+\.\d µs · Width [\d,]+\.\d µs$/);
+  const values = measured.match(/[\d,]+\.\d/g).map(value => Number(value.replaceAll(",", "")));
+  assert.ok(values[1] > values[0]);
+  assert.ok(Math.abs(values[2] - (values[1] - values[0])) < 0.2, "reported width is the selected time difference");
+  assert.equal(await evaluate("Number(document.getElementById('inspection-time').textContent.replace(/[^0-9.]/g,''))"), afterPan, "measuring does not change inspection time");
+  await chartDrag("right", 2, secondX, firstX);
+  assert.equal(await evaluate("document.getElementById('timeline-measurement').textContent"), measured, "reverse drag measures the same normalized window");
+  assert.equal(await evaluate("document.getElementById('velocity-chart').dispatchEvent(new MouseEvent('contextmenu',{cancelable:true}))"), false, "right drag suppresses the browser menu");
+  console.log("PASS middle-button timeline pan, right-drag measurement in either direction and grouped µs/ns timings");
   assert.deepEqual(errors, [], "no runtime or resource errors");
   console.log("PASS gate history and screenshot; no browser errors");
   console.log("Screenshot: " + path.join(artifactDirectory, "movesim.png"));

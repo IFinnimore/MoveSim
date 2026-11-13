@@ -8,6 +8,11 @@ A local motion workbench written in plain JavaScript, HTML and CSS. Dark mode is
 
 Open `index.html` in a browser. The clock starts stopped at zero, with Send disabled. Local use needs no internet connection.
 
+The local source also includes an experimental **Dyno** module: open its Settings
+and choose **Connect → Init → Send Test** with native Dyno running. It operates
+independently of the local clock and Send controls. See the [Dyno prototype
+notes](docs/dyno-prototype.md) for commands, timings and recording semantics.
+
 For a browser that needs localhost for gamepad access, run this from the MoveSim folder:
 
 ```powershell
@@ -18,7 +23,7 @@ Then open **http://127.0.0.1:8765**. Stop that local server with Ctrl+C. It serv
 
 ## Controls
 
-**Motion is sent only while the clock is running and Send is enabled.** Choose **Start**, then enable **Send** on screen or hold its mapped controller button (default **R2**).
+**Local model motion is sent only while the clock is running and Send is enabled.** Choose **Start**, then enable **Send** on screen or hold its mapped controller button (default **R2**). The Dyno prototype uses its own explicit buttons.
 
 Set up your gamepad with axes, directions, dead zone and button assignments that are convenient for you. The defaults below are starting points.
 
@@ -109,7 +114,7 @@ Scroll and +/- still zoom, centred on the followed point. **Pan is locked.** The
 
 - Click the velocity plot or drag its scrubber to stop and inspect the recording. **Latest** returns to the most recent state while remaining stopped. **Start** continues from the end of the run, not from the historical inspection time.
 
-- On the timeline, scroll to zoom at the pointer; shift-drag to scroll in time. **Fit to sim** restores an automatically fitted time range. Each model uses its own colour, with solid X and dashed Y velocity. Ramps are drawn with their recorded slope. Amber ticks mark shared input changes; blue ticks mark model messages. Click the blue marker lane to select a message and open its log entry.
+- On the timeline, scroll to zoom at the pointer; middle-button drag to pan in time. Right-button drag marks a window and reports Start, End and Width in µs with thousands separators. **Fit to sim** restores an automatically fitted time range. Each model uses its own colour, with solid X and dashed Y velocity. Ramps are drawn with their recorded slope. Amber ticks mark shared input changes; blue ticks mark model messages. Click the blue marker lane to select a message and open its log entry.
 
 ## Model settings
 

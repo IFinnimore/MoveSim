@@ -1,6 +1,6 @@
 "use strict";
 (function (sim) {
-  sim.createVelocityChart = function (canvas, onInspect, onMessage) {
+  sim.createVelocityChart = function (canvas, onInspect, onMessage, onMeasure) {
     let startMs = 0;
     let spanMs = 5000;
     let fitToSimulation = true;
@@ -9,6 +9,7 @@
     let height = 1;
     let drag = null;
     let messages = [];
+    let measurement = null;
     const left = 57;
     const right = 19;
     const top = 35;
@@ -17,6 +18,11 @@
     function plotWidth() { return Math.max(1, width - left - right); }
     function timeAt(screenX) { return sim.clamp(startMs + (screenX - left) / plotWidth() * spanMs, 0, totalTimeMs); }
     function screenX(timeMs) { return left + (timeMs - startMs) / spanMs * plotWidth(); }
+    function measure(anchorMs, endMs) {
+      measurement = { startMs: Math.min(anchorMs, endMs), endMs: Math.max(anchorMs, endMs) };
+      measurement.widthMs = measurement.endMs - measurement.startMs;
+      if (onMeasure) onMeasure(measurement);
+    }
     // Keep the time below the pointer fixed while changing how much history is shown.
     function zoom(factor, fraction) {
       fitToSimulation = false;
@@ -30,9 +36,12 @@
       zoom(Math.exp(-event.deltaY * 0.0015), sim.clamp((event.clientX - bounds.left - left) / plotWidth(), 0, 1));
     }, { passive: false });
     canvas.addEventListener("pointerdown", function (event) {
-      if (event.button !== 0 || drag) return;
+      if (![0, 1, 2].includes(event.button) || drag) return;
+      if (event.button !== 0) event.preventDefault();
       const bounds = canvas.getBoundingClientRect();
-      drag = { pointerId: event.pointerId, x: event.clientX, localX: event.clientX - bounds.left, localY: event.clientY - bounds.top, startMs, pan: event.shiftKey, moved: false };
+      const localX = event.clientX - bounds.left;
+      drag = { pointerId: event.pointerId, x: event.clientX, localX, localY: event.clientY - bounds.top, startMs, pan: event.button === 1, measure: event.button === 2, anchorMs: timeAt(localX), moved: false };
+      if (drag.measure) measure(drag.anchorMs, drag.anchorMs);
       canvas.setPointerCapture(event.pointerId);
     });
     canvas.addEventListener("pointermove", function (event) {
@@ -41,11 +50,13 @@
       if (drag.pan) {
         fitToSimulation = false;
         startMs = sim.clamp(drag.startMs - (event.clientX - drag.x) / plotWidth() * spanMs, 0, Math.max(0, totalTimeMs - spanMs * 0.1));
-      } else if (drag.moved) onInspect(timeAt(event.clientX - canvas.getBoundingClientRect().left));
+      } else if (drag.measure) measure(drag.anchorMs, timeAt(event.clientX - canvas.getBoundingClientRect().left));
+      else if (drag.moved) onInspect(timeAt(event.clientX - canvas.getBoundingClientRect().left));
     });
     canvas.addEventListener("pointerup", function (event) {
       if (!drag || drag.pointerId !== event.pointerId) return;
-      if (!drag.pan && !drag.moved) {
+      if (drag.measure) measure(drag.anchorMs, timeAt(event.clientX - canvas.getBoundingClientRect().left));
+      if (!drag.pan && !drag.measure && !drag.moved) {
         // Only the message marker lane selects messages. Clicking a velocity trace
         // inspects the requested time even when there are many nearby messages.
         let nearest = null;
@@ -58,7 +69,10 @@
         if (nearest) onMessage(nearest); else onInspect(timeAt(drag.localX));
       }
       drag = null;
+      if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
     });
+    canvas.addEventListener("contextmenu", function (event) { event.preventDefault(); });
+    canvas.addEventListener("auxclick", function (event) { if (event.button === 1) event.preventDefault(); });
     ["pointercancel", "lostpointercapture"].forEach(function (name) { canvas.addEventListener(name, function () { drag = null; }); });
 
     return {
@@ -78,7 +92,7 @@
         const centreY = top + plotHeight / 2;
         let maximumVelocity = 10;
         models.filter(function (model) { return model.visible; }).forEach(function (model) {
-          const current = model.stateAt(elapsedTimeMs);
+          const current = model.stateAt(Math.min(elapsedTimeMs, model.latestTimeMs));
           maximumVelocity = Math.max(maximumVelocity, Math.abs(current.velocityXdmmPerSecond) / 10, Math.abs(current.velocityYdmmPerSecond) / 10);
           model.velocityHistory.forEach(function (point) {
             if (point.timeMs <= elapsedTimeMs) maximumVelocity = Math.max(maximumVelocity, Math.abs(point.velocityXdmmPerSecond) / 10, Math.abs(point.velocityYdmmPerSecond) / 10);
@@ -123,6 +137,15 @@
           context.beginPath(); context.moveTo(x, 20); context.lineTo(x, 28); context.stroke();
         });
         // Use recorded acceleration to draw ramps between events. Zero acceleration
+        // Dyno's first prototype records pulse events without inventing a velocity.
+        models.filter(function (model) { return model.visible && model.external; }).forEach(function (model) {
+          context.strokeStyle = model.colour;
+          model.records.forEach(function (event) {
+            if (event.type !== "pulse" || event.timeMs === undefined || event.timeMs > elapsedTimeMs) return;
+            const x = screenX(event.timeMs);
+            context.beginPath(); context.moveTo(x, 20); context.lineTo(x, 28); context.stroke();
+          });
+        });
         // naturally retains the steps of the instant-response reference model.
         models.filter(function (model) { return model.visible; }).forEach(function (model) {
           for (const axis of ["X", "Y"]) {
@@ -144,12 +167,23 @@
               context.lineTo(screenX(point.timeMs), screenY(point[field]));
               previous = point;
             }
-            const endTimeMs = Math.min(elapsedTimeMs, startMs + spanMs);
+            const endTimeMs = Math.min(elapsedTimeMs, model.latestTimeMs, startMs + spanMs);
             context.lineTo(screenX(endTimeMs), screenY(velocityAt(previous, endTimeMs)));
             context.stroke(); context.setLineDash([]);
           }
         });
         const cursorX = screenX(inspectionTimeMs);
+        if (measurement) {
+          const fromX = screenX(measurement.startMs), toX = screenX(measurement.endMs);
+          context.fillStyle = "#ffbf6920";
+          context.fillRect(fromX, 0, toX - fromX, height - bottom);
+          context.strokeStyle = sim.colours.amber;
+          context.lineWidth = 1;
+          context.beginPath();
+          context.moveTo(fromX, 0); context.lineTo(fromX, height - bottom);
+          context.moveTo(toX, 0); context.lineTo(toX, height - bottom);
+          context.stroke();
+        }
         context.strokeStyle = "#d6e6e8";
         context.lineWidth = 1;
         context.beginPath(); context.moveTo(cursorX, 0); context.lineTo(cursorX, height - bottom); context.stroke();

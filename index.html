@@ -126,6 +126,15 @@
             </form>
             <div class="model-records"><span id="g91-record-count">0 points recorded</span></div>
           </div>
+          <div class="model-divider"></div>
+          <div class="model-title"><label><input id="dyno-visible" type="checkbox" checked><span class="trace-swatch" style="background:#ffc66d"></span> Dyno</label><div class="model-title-actions"><span id="dyno-state" class="model-badge">Disconnected</span><button class="model-settings-toggle" type="button" data-model-settings="Dyno" aria-controls="dyno-settings" aria-expanded="false">Settings</button></div><output id="dyno-position" class="model-position">X0.0 Y0.0</output></div>
+          <div id="dyno-settings" class="model-settings-content" hidden>
+            <label class="field">WebSocket<input id="dyno-address" type="text" value="ws://127.0.0.1:8100" spellcheck="false"></label>
+            <label class="field">Feed rate (mm/min)<input id="dyno-feedrate" type="number" min="1" max="1000000" step="1" value="6000" required></label>
+            <div class="preset-actions"><button id="dyno-connect" type="button">Connect</button><button id="dyno-init" type="button" disabled>Init</button><button id="dyno-test" type="button" disabled>Send Test</button></div>
+            <pre id="dyno-results" class="dyno-results"></pre>
+            <div class="model-records"><span id="dyno-record-count">0 events</span></div>
+          </div>
       </div>
     </section>
 
@@ -139,8 +148,9 @@
 
     <section class="panel timeline-panel" aria-labelledby="timeline-heading">
       <div class="panel-heading"><h2 id="timeline-heading"><span>04</span> Velocity / time</h2><div class="timeline-legend"><span><i class="legend-line"></i> X</span><span><i class="legend-line dashed"></i> Y</span><span><i class="marker-key input-key"></i> Input</span><span><i class="marker-key message-key"></i> Message received</span></div><div class="toolbar"><button id="timeline-zoom-out" aria-label="Zoom timeline out">−</button><button id="timeline-zoom-in" aria-label="Zoom timeline in">+</button><button id="timeline-fit">Fit to sim</button><button id="messages-button" aria-expanded="false">Messages <span id="message-count">0</span></button></div></div>
-      <div class="timeline-body"><div class="chart-container"><canvas id="velocity-chart" tabindex="0" aria-label="Velocity chart. Click to inspect a time or message. Scroll to zoom; shift and drag to pan."></canvas></div><aside id="message-log" class="message-log" aria-label="Message log" hidden><div id="message-detail" class="message-detail">Select a message marker or log entry.</div><div id="message-list" class="message-list"></div></aside></div>
-      <footer class="timeline-footer"><label for="time-scrubber">INSPECT</label><input id="time-scrubber" type="range" min="0" max="1" step="1" value="0" aria-label="Inspect recording time"><output id="inspection-time">0 ms</output><button id="return-live">Latest</button><span>Click to inspect · scroll to zoom · shift-drag to pan</span></footer>
+      <div class="timeline-body"><div class="chart-container"><canvas id="velocity-chart" tabindex="0" aria-label="Velocity chart. Click to inspect a time or message. Scroll to zoom; middle-drag to pan; right-drag to measure a time window."></canvas></div><aside id="message-log" class="message-log" aria-label="Message log" hidden><div id="message-detail" class="message-detail">Select a message marker or log entry.</div><div id="message-list" class="message-list"></div></aside></div>
+      <div class="timeline-measurement"><output id="timeline-measurement">Start — µs · End — µs · Width — µs</output></div>
+      <footer class="timeline-footer"><label for="time-scrubber">INSPECT</label><input id="time-scrubber" type="range" min="0" max="1" step="1" value="0" aria-label="Inspect recording time"><output id="inspection-time">0 ms</output><button id="return-live">Latest</button><span>Click to inspect · scroll to zoom · middle-drag to pan · right-drag to measure</span></footer>
     </section>
   </main>
   <noscript>MoveSim needs JavaScript enabled. All code runs locally in this browser.</noscript>
@@ -160,6 +170,8 @@
   <script src="js/model-base.js"></script>
   <script src="js/model-just-draw.js"></script>
   <script src="js/model-g91-incremental.js"></script>
+  <script src="js/model-dyno.js"></script>
+  <script src="js/dyno-panel.js"></script>
   <script src="js/camera-view.js"></script>
   <script src="js/motion-canvas.js"></script>
   <script src="js/velocity-chart.js"></script>

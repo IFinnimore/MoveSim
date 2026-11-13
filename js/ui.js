@@ -7,6 +7,10 @@
   const messages = sim.createMessageLog();
   const machineSettings = sim.createMachineSettings();
   const models = [sim.createJustDrawModel({ input, messages, machineSettings: machineSettings.values }), sim.createG91Model({ input, messages, machineSettings: machineSettings.values })];
+  const dyno = sim.createDynoModel({});
+  models.push(dyno);
+  const drawDynoPanel = sim.bindDynoPanel(dyno);
+  function recordingEndMs() { return Math.max(clock.now(), dyno.latestTimeMs); }
   let inspectionTimeMs = null;
   let selectedMessage = null;
   let clearing = false;
@@ -20,7 +24,7 @@
     if (clearing || !clock.isRunning()) return;
     // Do not rewrite a millisecond that models have already consumed. This keeps
     // later replay consistent with the input actually available at a sample event.
-    const nextUnreadTimeMs = Math.max.apply(null, models.map(function (model) { return model.latestTimeMs; })) + 1;
+    const nextUnreadTimeMs = Math.max.apply(null, models.filter(function (model) { return !model.external; }).map(function (model) { return model.latestTimeMs; })) + 1;
     input.record(Math.max(clock.now(), nextUnreadTimeMs), x, y, source, streamSettings());
   }
   const buttons = sim.createButtonControls({
@@ -69,7 +73,9 @@
     element("canvas-view").append(option);
   });
   element("canvas-view").addEventListener("change", function (event) { motionCanvas.setView(event.target.value); });
-  const velocityChart = sim.createVelocityChart(element("velocity-chart"), inspect, selectMessage);
+  const velocityChart = sim.createVelocityChart(element("velocity-chart"), inspect, selectMessage, function (range) {
+    element("timeline-measurement").textContent = "Start " + sim.formatGroupedNumber(range.startMs * 1000, 1) + " µs · End " + sim.formatGroupedNumber(range.endMs * 1000, 1) + " µs · Width " + sim.formatGroupedNumber(range.widthMs * 1000, 1) + " µs";
+  });
 
   function readJustDrawParameters() {
     return {
@@ -167,7 +173,7 @@
 
   function inspect(timeMs) {
     pause();
-    inspectionTimeMs = sim.clamp(timeMs, 0, clock.now());
+    inspectionTimeMs = sim.clamp(timeMs, 0, recordingEndMs());
   }
 
   function openMessages() {
@@ -297,13 +303,13 @@
   function drawFrame(frameTimeMs) {
     controls.poll();
     if (clock.isRunning() && activityTimer.shouldPause(controls.hasHeldInput() || buttons.hasHeldInput())) pause("idle");
-    const elapsedTimeMs = clock.now();
-    if (clock.isRunning()) advanceModels(elapsedTimeMs);
+    const elapsedTimeMs = recordingEndMs();
+    if (clock.isRunning()) advanceModels(clock.now());
     const shownTimeMs = inspectionTimeMs === null ? elapsedTimeMs : inspectionTimeMs;
     motionCanvas.draw(models, shownTimeMs);
     velocityChart.draw(models, input.history, messages.entries, elapsedTimeMs, shownTimeMs, selectedMessage ? selectedMessage.id : null);
 
-    element("clock-time").textContent = sim.formatTime(elapsedTimeMs);
+    element("clock-time").textContent = sim.formatTime(clock.now());
     element("clock-label").textContent = clock.isRunning() ? "RUNNING" : pausedForInactivity ? "IDLE" : "STOPPED";
     element("clock-status").classList.toggle("paused", !clock.isRunning());
     element("pause-button").textContent = clock.isRunning() ? "Stop the clock" : "Start";
@@ -311,7 +317,7 @@
     element("pause-button").title = pausedForInactivity ? "Paused after 60 seconds without input. Start begins a fresh inactivity interval." : "";
     element("inspection-label").textContent = inspectionTimeMs === null ? (clock.isRunning() ? "LIVE" : "STOPPED") : "INSPECTING";
     models.forEach(function (model) {
-      const state = model.stateAt(shownTimeMs);
+      const state = model.stateAt(Math.min(shownTimeMs, model.latestTimeMs));
       element(model.id + "-position").textContent = "X" + (Math.round(state.positionXdmm) / 10).toFixed(1) + " Y" + (Math.round(state.positionYdmm) / 10).toFixed(1);
     });
     element("record-count").textContent = models[0].points.length.toLocaleString() + " points recorded";
@@ -321,6 +327,7 @@
     element("time-scrubber").value = String(Math.round(shownTimeMs));
     element("inspection-time").textContent = Math.round(shownTimeMs).toLocaleString() + " ms";
     drawMessageLog(frameTimeMs);
+    drawDynoPanel();
     requestAnimationFrame(drawFrame);
   }
 

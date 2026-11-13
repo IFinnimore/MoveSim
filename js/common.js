@@ -6,6 +6,12 @@ window.MoveSim = window.MoveSim || {};
   sim.centrePositiondmm = 2000;
   sim.colours = { green: "#66f7ac", blue: "#62baff", amber: "#ffbf69" };
 
+  // Explicit grouping keeps timing scale points consistent across browser locales.
+  sim.formatGroupedNumber = function (value, decimalPlaces) {
+    const digits = decimalPlaces === undefined ? 0 : decimalPlaces;
+    return value.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  };
+
   sim.clamp = function (value, minimum, maximum) {
     return Math.max(minimum, Math.min(maximum, value));
   };
